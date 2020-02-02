@@ -55,7 +55,7 @@ public class CreamAsset: Object {
         do {
             try data.write(to: url)
         } catch {
-            print("Error writing avatar to temporary directory: \(error)")
+            logInfo("Error writing avatar to temporary directory: \(error)")
         }
     }
 
@@ -153,7 +153,7 @@ extension CreamAsset {
         for fileName in filesNames {
             let absolutePath = CreamAsset.creamAssetDefaultURL().appendingPathComponent(fileName).path
             do {
-                print("deleteCacheFiles.removeItem:", absolutePath)
+                logInfo("deleteCacheFiles.removeItem:", absolutePath)
                 try FileManager.default.removeItem(atPath: absolutePath)
             } catch {
 
