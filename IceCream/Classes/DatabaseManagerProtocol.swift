@@ -53,10 +53,13 @@ extension DatabaseManager {
     }
     
     func resumeLongLivedOperationIfPossible() {
+
         container.fetchAllLongLivedOperationIDs { [weak self]( opeIDs, error) in
+            logInfo("fetchAllLongLivedOperationIDs opeIDs: \(String(describing: opeIDs)) error: \(String(describing: error))")
             guard let self = self, error == nil, let ids = opeIDs else { return }
             for id in ids {
                 self.container.fetchLongLivedOperation(withID: id, completionHandler: { [weak self](ope, error) in
+                    logInfo("fetchLongLivedOperation id: \(id) ope: \(ope) error: \(String(describing: error))")
                     guard let self = self, error == nil else { return }
                     if let modifyOp = ope as? CKModifyRecordsOperation {
                         modifyOp.modifyRecordsCompletionBlock = { (_,_,_) in
@@ -73,6 +76,7 @@ extension DatabaseManager {
         NotificationCenter.default.addObserver(forName: Notifications.cloudKitDataDidChangeRemotely.name, object: nil, queue: nil, using: { [weak self](_) in
             guard let self = self else { return }
             DispatchQueue.global(qos: .utility).async {
+                logInfo("observering notification remote Changes")
                 self.fetchChangesInDatabase(nil)
             }
         })

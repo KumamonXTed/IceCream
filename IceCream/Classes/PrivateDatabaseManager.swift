@@ -27,27 +27,33 @@ final class PrivateDatabaseManager: DatabaseManager {
     }
     
     func fetchChangesInDatabase(_ callback: ((Error?) -> Void)?) {
+        logInfo("fetchChangesInDataBase")
         let changesOperation = CKFetchDatabaseChangesOperation(previousServerChangeToken: databaseChangeToken)
         
         /// Only update the changeToken when fetch process completes
         changesOperation.changeTokenUpdatedBlock = { [weak self] newToken in
+            logInfo("fetchChangesInDataBase newToken: \(newToken)")
             self?.databaseChangeToken = newToken
         }
         
         changesOperation.fetchDatabaseChangesCompletionBlock = {
             [weak self]
             newToken, _, error in
+            logInfo("fetchChangesInDataBase fetchDataBaseChanges: \(String(describing: newToken)) error: \(String(describing: error))")
             guard let self = self else { return }
-            switch ErrorHandler.shared.resultType(with: error) {
+            let resultType = ErrorHandler.shared.resultType(with: error)
+            switch resultType {
             case .success:
                 self.databaseChangeToken = newToken
                 // Fetch the changes in zone level
                 self.fetchChangesInZones(callback)
             case .retry(let timeToWait, _):
+                logInfo("fetchChangesInDataBase fetchDataBaseChanges with retry: \(timeToWait)")
                 ErrorHandler.shared.retryOperationIfPossible(retryAfter: timeToWait, block: {
                     self.fetchChangesInDatabase(callback)
                 })
             case .recoverableError(let reason, _):
+                logInfo("fetchChangesInDataBase fetchDataBaseChanges recoverableError reason: \(reason)")
                 switch reason {
                 case .changeTokenExpired:
                     /// The previousServerChangeToken value is too old and the client must re-sync from scratch
@@ -65,13 +71,20 @@ final class PrivateDatabaseManager: DatabaseManager {
     }
     
     func createCustomZonesIfAllowed() {
+        logInfo("createCustomZonesIfAllowed")
         let zonesToCreate = syncObjects.filter { !$0.isCustomZoneCreated }.map { CKRecordZone(zoneID: $0.zoneID) }
-        guard zonesToCreate.count > 0 else { return }
+        guard zonesToCreate.count > 0 else {
+            logInfo("no zone need to create")
+            return
+        }
         
         let modifyOp = CKModifyRecordZonesOperation(recordZonesToSave: zonesToCreate, recordZoneIDsToDelete: nil)
         modifyOp.modifyRecordZonesCompletionBlock = { [weak self](_, _, error) in
             guard let self = self else { return }
-            switch ErrorHandler.shared.resultType(with: error) {
+            logInfo("modifyRecordZonsComplete with error: \(String(describing: error))")
+            let resultType = ErrorHandler.shared.resultType(with: error)
+            logInfo("modifyRecordZonsComplete resultType: \(resultType)")
+            switch resultType {
             case .success:
                 self.syncObjects.forEach { object in
                     object.isCustomZoneCreated = true
@@ -96,6 +109,7 @@ final class PrivateDatabaseManager: DatabaseManager {
     
     func createDatabaseSubscriptionIfHaveNot() {
         #if os(iOS) || os(tvOS) || os(macOS)
+        logInfo("createDatabaseSubscriptionIfHaveNot start")
         guard !subscriptionIsLocallyCached else { return }
         let subscription = CKDatabaseSubscription(subscriptionID: IceCreamSubscription.cloudKitPrivateDatabaseSubscriptionID.id)
         
@@ -106,11 +120,13 @@ final class PrivateDatabaseManager: DatabaseManager {
         
         let createOp = CKModifySubscriptionsOperation(subscriptionsToSave: [subscription], subscriptionIDsToDelete: [])
         createOp.modifySubscriptionsCompletionBlock = { _, _, error in
+            logInfo("modifySubscriptionsCompletionBlock \(String(describing: error))")
             guard error == nil else { return }
             self.subscriptionIsLocallyCached = true
         }
         createOp.qualityOfService = .utility
         database.add(createOp)
+        logInfo("createDatabaseSubscriptionIfHaveNot end")
         #endif
     }
     
@@ -127,8 +143,10 @@ final class PrivateDatabaseManager: DatabaseManager {
     }
     
     func registerLocalDatabase() {
+        logInfo("registerLocalDataBase")
         self.syncObjects.forEach { object in
             DispatchQueue.main.async {
+                logInfo("registerLocalDataBase \(object)")
                 object.registerLocalDatabase()
             }
         }
@@ -235,7 +253,9 @@ extension PrivateDatabaseManager {
     }
     
     @objc func cleanUp() {
+        logInfo("cleanUp")
         for syncObject in syncObjects {
+            logInfo("cleanUp object: \(syncObject)")
             syncObject.cleanUp()
         }
     }
